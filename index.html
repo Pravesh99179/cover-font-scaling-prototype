@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gallery Cover Editor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&family=DM+Serif+Display&family=Syne:wght@400;500;600;700&family=Space+Mono:wght@400;700&family=Playfair+Display:wght@400;500;600;700&family=Fraunces:wght@300;400;500;600&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-primary:    #ffffff;
+      --bg-secondary:  #f5f5f7;
+      --bg-tertiary:   #ebebed;
+      --text-primary:  #111112;
+      --text-secondary:#6b6b72;
+      --text-tertiary: #9b9ba2;
+      --border-light:  #e2e2e6;
+      --border-mid:    #c8c8ce;
+      --accent:        #6366f1;
+      --warn:          #d97706;
+      --danger:        #dc2626;
+      --info:          #0ea5e9;
+      --radius-md:     8px;
+      --font-ui:       'DM Sans', sans-serif;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg-primary:    #18181b;
+        --bg-secondary:  #232326;
+        --bg-tertiary:   #2c2c30;
+        --text-primary:  #f0f0f2;
+        --text-secondary:#9898a2;
+        --text-tertiary: #606068;
+        --border-light:  #2e2e34;
+        --border-mid:    #3e3e46;
+      }
+    }
+
+    html, body { height: 100%; font-family: var(--font-ui); background: var(--bg-secondary); color: var(--text-primary); }
+
+    .app { display: flex; flex-direction: column; min-height: 100vh; }
+
+    /* ── Toolbar ──────────────────────────────────────── */
+    .toolbar {
+      background: var(--bg-primary);
+      border-bottom: 1px solid var(--border-light);
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-shrink: 0;
+      position: sticky;
+      top: 0;
+      z-index: 20;
+    }
+
+    .toolbar-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .bp-switcher {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-md);
+      padding: 3px;
+    }
+
+    .bp-btn {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 11px;
+      border-radius: 6px;
+      border: none;
+      background: transparent;
+      font-family: var(--font-ui);
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+      white-space: nowrap;
+      line-height: 1;
+    }
+
+    .bp-btn svg { flex-shrink: 0; transition: opacity 0.15s; opacity: 0.55; }
+
+    .bp-btn.active {
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+    }
+
+    .bp-btn.active svg { opacity: 1; }
+
+    @media (max-width: 400px) {
+      .bp-btn span { display: none; }
+      .bp-btn { padding: 6px 9px; }
+    }
+
+    /* ── Preview wrap — constrains width per BP ───────── */
+    .preview-wrap {
+      background: var(--bg-tertiary);
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      transition: padding 0.3s ease;
+      flex-shrink: 0;
+    }
+
+    .preview-wrap.bp-web { padding: 0; }
+    .preview-wrap.bp-tab { padding: 20px 20px 0; }
+    .preview-wrap.bp-mob { padding: 20px 20px 0; }
+
+    .preview-sizer {
+      width: 100%;
+      transition: max-width 0.3s ease;
+    }
+
+    .preview-wrap.bp-web .preview-sizer { max-width: 100%; }
+    .preview-wrap.bp-tab .preview-sizer { max-width: 768px; }
+    .preview-wrap.bp-mob .preview-sizer { max-width: 390px; }
+
+    /* ── Preview panel ────────────────────────────────── */
+    .preview-panel {
+      position: relative;
+      overflow: hidden;
+      background: #0c0c14;
+      aspect-ratio: 16 / 7;
+      display: flex;
+      align-items: flex-end;
+      padding: 5.5% 7%;
+      width: 100%;
+    }
+
+    .preview-bg {
+      position: absolute; inset: 0;
+      background: linear-gradient(135deg, #12121f 0%, #161830 45%, #0e2744 100%);
+    }
+
+    .noise {
+      position: absolute; inset: 0; opacity: 0.038;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+      background-size: 160px;
+    }
+
+    .glow {
+      position: absolute; top: -20%; right: -10%;
+      width: 55%; aspect-ratio: 1; border-radius: 50%;
+      background: radial-gradient(circle, rgba(79,70,229,0.16) 0%, transparent 68%);
+      pointer-events: none;
+    }
+
+    .glow2 {
+      position: absolute; bottom: -30%; left: 5%;
+      width: 35%; aspect-ratio: 1; border-radius: 50%;
+      background: radial-gradient(circle, rgba(14,165,233,0.08) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .preview-content { position: relative; z-index: 2; width: 100%; }
+
+    .preview-title {
+      color: #f0efe8;
+      line-height: 1.18;
+      letter-spacing: -0.015em;
+      margin-bottom: 0.35em;
+      word-break: break-word;
+      white-space: pre-wrap;
+      transition: font-size 0.22s ease, font-family 0.15s, font-weight 0.15s;
+    }
+
+    .preview-desc {
+      color: rgba(240,239,232,0.52);
+      line-height: 1.5;
+      word-break: break-word;
+      white-space: pre-wrap;
+      transition: font-size 0.22s ease, font-family 0.15s, font-weight 0.15s;
+    }
+
+    .scale-badge {
+      position: absolute; top: 3.5%; right: 4%;
+      z-index: 4;
+      font-size: clamp(9px, 1.1vw, 11px);
+      font-family: var(--font-ui);
+      padding: 3px 9px; border-radius: 20px;
+      background: rgba(234,179,8,0.14);
+      border: 1px solid rgba(234,179,8,0.28);
+      color: #f59e0b;
+      display: none;
+    }
+
+    .scale-badge.on { display: block; }
+
+    /* Ghost measurement elements */
+    .ghost {
+      position: fixed; top: -9999px; left: -9999px;
+      visibility: hidden; pointer-events: none; z-index: -1;
+      word-break: break-word; white-space: pre-wrap;
+    }
+
+    /* ── Editor panel ─────────────────────────────────── */
+    .editor-panel {
+      flex: 1;
+      background: var(--bg-primary);
+      border-top: 1px solid var(--border-light);
+      padding: 0 24px 32px;
+    }
+
+    .cols {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0;
+      max-width: 960px;
+      margin: 0 auto;
+    }
+
+    @media (min-width: 640px) {
+      .cols { grid-template-columns: 1fr 1fr; column-gap: 32px; }
+      .col-divider { display: none; }
+      .col-right { border-left: 1px solid var(--border-light); padding-left: 32px; }
+    }
+
+    .section { display: flex; flex-direction: column; gap: 10px; padding: 20px 0; }
+    .section-head { display: flex; align-items: center; justify-content: space-between; }
+
+    .section-tag {
+      font-size: 10px; font-weight: 600;
+      letter-spacing: 0.09em; text-transform: uppercase;
+      color: var(--text-secondary);
+      display: flex; align-items: center; gap: 5px;
+    }
+
+    .section-tag::before {
+      content: ''; width: 4px; height: 4px; border-radius: 50%;
+      background: currentColor; flex-shrink: 0;
+    }
+
+    .meta-row { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+
+    .line-hint { font-size: 11px; color: var(--text-tertiary); transition: color 0.15s; }
+    .line-hint.scaling { color: #f59e0b; }
+
+    .char-count { font-size: 11px; color: var(--text-tertiary); font-variant-numeric: tabular-nums; flex-shrink: 0; }
+    .char-count.warn { color: var(--warn); }
+    .char-count.over { color: var(--danger); }
+
+    textarea {
+      width: 100%; resize: none;
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-md);
+      padding: 9px 11px;
+      font-family: var(--font-ui); font-size: 13px;
+      color: var(--text-primary);
+      background: var(--bg-secondary);
+      line-height: 1.5; outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+
+    textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(99,102,241,0.1); }
+    textarea.at-limit { border-color: var(--warn); }
+
+    .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .ctrl-full { grid-column: 1 / -1; }
+    .ctrl-group { display: flex; flex-direction: column; gap: 4px; }
+
+    .ctrl-label {
+      font-size: 10px; font-weight: 500;
+      color: var(--text-secondary);
+      text-transform: uppercase; letter-spacing: 0.07em;
+    }
+
+    select {
+      width: 100%; height: 34px;
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-md);
+      padding: 0 24px 0 9px;
+      font-family: var(--font-ui); font-size: 13px;
+      color: var(--text-primary);
+      background: var(--bg-secondary);
+      cursor: pointer; outline: none; appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23888' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 8px center;
+      transition: border-color 0.15s;
+    }
+
+    select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(99,102,241,0.1); }
+
+    .size-wrap { display: flex; height: 34px; }
+
+    .size-wrap input {
+      flex: 1; height: 34px; min-width: 0;
+      border: 1px solid var(--border-light); border-right: none;
+      border-radius: var(--radius-md) 0 0 var(--radius-md);
+      padding: 0 6px;
+      font-family: var(--font-ui); font-size: 13px; font-weight: 500;
+      color: var(--text-primary);
+      background: var(--bg-secondary);
+      text-align: center; outline: none;
+      -moz-appearance: textfield;
+      transition: border-color 0.15s;
+    }
+
+    .size-wrap input::-webkit-outer-spin-button,
+    .size-wrap input::-webkit-inner-spin-button { -webkit-appearance: none; }
+    .size-wrap input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(99,102,241,0.1); }
+
+    .px-tag {
+      height: 34px; padding: 0 8px;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-light);
+      border-radius: 0 var(--radius-md) var(--radius-md) 0;
+      display: flex; align-items: center;
+      font-size: 10px; color: var(--text-tertiary);
+      flex-shrink: 0; user-select: none;
+    }
+
+    .snap-hint { font-size: 11px; color: var(--text-tertiary); min-height: 14px; }
+    .snap-hint.snapped { color: var(--text-secondary); }
+    .snap-hint.floored { color: var(--warn); }
+    .snap-hint.capped  { color: var(--info); }
+
+    .eff-sizes { display: flex; gap: 5px; flex-wrap: wrap; }
+
+    .chip {
+      font-size: 10px; padding: 3px 8px; border-radius: 5px;
+      background: var(--bg-secondary);
+      color: var(--text-secondary);
+      border: 1px solid var(--border-light);
+      display: flex; align-items: center; gap: 4px;
+    }
+
+    .chip .dot { width: 4px; height: 4px; border-radius: 50%; background: var(--border-mid); flex-shrink: 0; }
+    .chip.cur { background: var(--bg-primary); border-color: var(--accent); color: var(--text-primary); font-weight: 500; }
+    .chip.cur .dot { background: var(--accent); }
+
+    .h-rule { border: none; border-top: 1px solid var(--border-light); }
+
+    @media (max-width: 480px) {
+      .editor-panel { padding: 0 16px 28px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Ghost measurement elements -->
+<div class="ghost" id="titleGhost" style="line-height:1.18;"></div>
+<div class="ghost" id="descGhost"  style="line-height:1.5;"></div>
+
+<div class="app" id="app">
+
+  <!-- ── Toolbar ── -->
+  <div class="toolbar">
+    <span class="toolbar-title">Cover Preview</span>
+    <div class="bp-switcher">
+
+      <button class="bp-btn active" data-bp="web">
+        <!-- Monitor icon -->
+        <svg width="15" height="12" viewBox="0 0 15 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="0.65" y="0.65" width="13.7" height="8.7" rx="1.2" stroke="currentColor" stroke-width="1.3"/>
+          <path d="M5 11.35h5M7.5 9.35v2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+        </svg>
+        <span>Web</span>
+      </button>
+
+      <button class="bp-btn" data-bp="tab">
+        <!-- Tablet icon -->
+        <svg width="11" height="14" viewBox="0 0 11 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="0.65" y="0.65" width="9.7" height="12.7" rx="1.4" stroke="currentColor" stroke-width="1.3"/>
+          <circle cx="5.5" cy="11.4" r="0.75" fill="currentColor"/>
+        </svg>
+        <span>Tablet</span>
+      </button>
+
+      <button class="bp-btn" data-bp="mob">
+        <!-- Phone icon -->
+        <svg width="9" height="14" viewBox="0 0 9 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="0.65" y="0.65" width="7.7" height="12.7" rx="1.8" stroke="currentColor" stroke-width="1.3"/>
+          <circle cx="4.5" cy="11.4" r="0.75" fill="currentColor"/>
+          <line x1="3" y1="2.2" x2="6" y2="2.2" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
+        </svg>
+        <span>Mobile</span>
+      </button>
+
+    </div>
+  </div>
+
+  <!-- ── Preview ── -->
+  <div class="preview-wrap bp-web" id="previewWrap">
+    <div class="preview-sizer" id="previewSizer">
+      <div class="preview-panel" id="previewPanel">
+        <div class="preview-bg"></div>
+        <div class="noise"></div>
+        <div class="glow"></div>
+        <div class="glow2"></div>
+
+        <span class="scale-badge" id="scaleBadge">Auto-scaled</span>
+
+        <div class="preview-content">
+          <div class="preview-title" id="previewTitle">Gallery Cover Title</div>
+          <div class="preview-desc"  id="previewDesc">A short description for the gallery cover template.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Editor ── -->
+  <div class="editor-panel">
+    <div class="cols">
+
+      <!-- TITLE -->
+      <div class="col">
+        <div class="section">
+          <div class="section-head">
+            <span class="section-tag">Title</span>
+          </div>
+          <div class="meta-row">
+            <span class="line-hint" id="titleLineHint">1 line</span>
+            <span class="char-count" id="titleCharCount">19 / 70</span>
+          </div>
+          <textarea id="titleInput" rows="2" placeholder="Enter title…">Gallery Cover Title</textarea>
+          <div class="controls">
+            <div class="ctrl-group ctrl-full">
+              <span class="ctrl-label">Font family</span>
+              <select id="titleFamily">
+                <option value="'DM Serif Display', serif">DM Serif Display</option>
+                <option value="'Syne', sans-serif">Syne</option>
+                <option value="'Playfair Display', serif">Playfair Display</option>
+                <option value="'Fraunces', serif">Fraunces</option>
+                <option value="'Space Mono', monospace">Space Mono</option>
+                <option value="'Instrument Sans', sans-serif">Instrument Sans</option>
+              </select>
+            </div>
+            <div class="ctrl-group">
+              <span class="ctrl-label">Weight</span>
+              <select id="titleWeight">
+                <option value="300">Light</option>
+                <option value="400" selected>Regular</option>
+                <option value="500">Medium</option>
+                <option value="600">Semi Bold</option>
+                <option value="700">Bold</option>
+              </select>
+            </div>
+            <div class="ctrl-group">
+              <span class="ctrl-label">Size</span>
+              <div class="size-wrap">
+                <input type="number" id="titleSizeInput" value="40" />
+                <div class="px-tag">px</div>
+              </div>
+            </div>
+          </div>
+          <div class="snap-hint" id="titleSnapHint"></div>
+          <div class="eff-sizes" id="titleEffSizes"></div>
+        </div>
+      </div>
+
+      <hr class="h-rule col-divider" />
+
+      <!-- DESC -->
+      <div class="col col-right">
+        <div class="section">
+          <div class="section-head">
+            <span class="section-tag">Description</span>
+          </div>
+          <div class="meta-row">
+            <span class="line-hint" id="descLineHint">1 line</span>
+            <span class="char-count" id="descCharCount">50 / 150</span>
+          </div>
+          <textarea id="descInput" rows="3" placeholder="Enter description…">A short description for the gallery cover template.</textarea>
+          <div class="controls">
+            <div class="ctrl-group ctrl-full">
+              <span class="ctrl-label">Font family</span>
+              <select id="descFamily">
+                <option value="'DM Sans', sans-serif" selected>DM Sans</option>
+                <option value="'Instrument Sans', sans-serif">Instrument Sans</option>
+                <option value="'Syne', sans-serif">Syne</option>
+                <option value="'Fraunces', serif">Fraunces</option>
+                <option value="'Playfair Display', serif">Playfair Display</option>
+                <option value="'Space Mono', monospace">Space Mono</option>
+              </select>
+            </div>
+            <div class="ctrl-group">
+              <span class="ctrl-label">Weight</span>
+              <select id="descWeight">
+                <option value="300">Light</option>
+                <option value="400" selected>Regular</option>
+                <option value="500">Medium</option>
+                <option value="600">Semi Bold</option>
+              </select>
+            </div>
+            <div class="ctrl-group">
+              <span class="ctrl-label">Size</span>
+              <div class="size-wrap">
+                <input type="number" id="descSizeInput" value="14" />
+                <div class="px-tag">px</div>
+              </div>
+            </div>
+          </div>
+          <div class="snap-hint" id="descSnapHint"></div>
+          <div class="eff-sizes" id="descEffSizes"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+  const STEPS       = [12,14,16,18,20,24,28,32,40,48,56,70];
+  const CHAR_LIMITS = { title:70, desc:150 };
+  const MAX_LINES   = 3;
+  const SCALE_STEP  = 0.9;
+  const FLOORS      = { title:16, desc:12 };
+
+  const BP_CONFIG = {
+    title: { web:{max:70,floor:16}, tab:{max:40,floor:16}, mob:{max:20,floor:16} },
+    desc:  { web:{max:24,floor:12}, tab:{max:16,floor:12}, mob:{max:12,floor:12} },
+  };
+  const BP_LABELS = { web:'Web', tab:'Tablet', mob:'Mobile' };
+
+  let currentBP = 'web';
+
+  const state = {
+    title: { family:"'DM Serif Display', serif", weight:'400', size:40 },
+    desc:  { family:"'DM Sans', sans-serif",      weight:'400', size:14 },
+  };
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+
+  function nearestStep(val, floor, max) {
+    const clamped = Math.max(floor, Math.min(max, val));
+    const valid   = STEPS.filter(s => s >= floor && s <= max);
+    if (!valid.length) return floor;
+    return valid.reduce((b,s) => Math.abs(s-clamped)<Math.abs(b-clamped)?s:b, valid[0]);
+  }
+
+  function effectiveBase(el, bp) {
+    const {max, floor} = BP_CONFIG[el][bp];
+    return Math.max(floor, Math.min(max, state[el].size));
+  }
+
+  function countLines(ghostId, text, fontSize, family, weight, lhr) {
+    const ghost = document.getElementById(ghostId);
+    const panel = document.getElementById('previewPanel');
+    const w     = panel.offsetWidth * 0.86;
+    ghost.style.width      = w + 'px';
+    ghost.style.fontFamily = family;
+    ghost.style.fontWeight = weight;
+    ghost.style.fontSize   = fontSize + 'px';
+    ghost.style.lineHeight = lhr;
+    ghost.textContent      = text || ' ';
+    const lineH  = fontSize * parseFloat(lhr);
+    const totalH = ghost.getBoundingClientRect().height;
+    return Math.max(1, Math.round(totalH / lineH));
+  }
+
+  function computeAutoSize(el, text, baseSize) {
+    const floor   = FLOORS[el];
+    const ghostId = el + 'Ghost';
+    const lhr     = el === 'title' ? '1.18' : '1.5';
+    let size = baseSize;
+    for (let i = 0; i < 20; i++) {
+      const lines = countLines(ghostId, text, size, state[el].family, state[el].weight, lhr);
+      if (lines <= MAX_LINES) break;
+      const next = Math.max(floor, Math.floor(size * SCALE_STEP));
+      if (next === size) break;
+      size = next;
+    }
+    return size;
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────────
+
+  const scalingActive = { title:false, desc:false };
+
+  function updateAll(el) {
+    const text    = document.getElementById(el + 'Input').value;
+    const base    = effectiveBase(el, currentBP);
+    const auto    = computeAutoSize(el, text, base);
+    const scaling = auto < base;
+    scalingActive[el] = scaling;
+
+    const prev = document.getElementById('preview' + (el==='title'?'Title':'Desc'));
+    prev.style.fontFamily = state[el].family;
+    prev.style.fontWeight = state[el].weight;
+    prev.style.fontSize   = auto + 'px';
+    prev.textContent      = text;
+
+    document.getElementById('scaleBadge').classList.toggle('on', scalingActive.title || scalingActive.desc);
+
+    const lhr   = el === 'title' ? '1.18' : '1.5';
+    const lines = countLines(el+'Ghost', text, auto, state[el].family, state[el].weight, lhr);
+    const hint  = document.getElementById(el + 'LineHint');
+    hint.textContent = `${lines} line${lines!==1?'s':''}` + (scaling ? ` · scaled to ${auto}px` : '');
+    hint.className   = 'line-hint' + (scaling ? ' scaling' : '');
+
+    updateEffSizes(el);
+  }
+
+  function updateEffSizes(el) {
+    const text = document.getElementById(el + 'Input').value;
+    const c    = document.getElementById(el + 'EffSizes');
+    c.innerHTML = ['web','tab','mob'].map(bp => {
+      const base  = effectiveBase(el, bp);
+      const auto  = computeAutoSize(el, text, base);
+      const isCur = bp === currentBP;
+      return `<div class="chip${isCur?' cur':''}">
+        <div class="dot"></div>${BP_LABELS[bp]}: ${auto}px${auto<base?' ↓':''}
+      </div>`;
+    }).join('');
+  }
+
+  function fullUpdate() {
+    updateAll('title');
+    updateAll('desc');
+  }
+
+  // ── BP switcher ───────────────────────────────────────────────────────────
+
+  document.querySelectorAll('.bp-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const bp = btn.dataset.bp;
+      if (bp === currentBP) return;
+      currentBP = bp;
+
+      document.querySelectorAll('.bp-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+
+      const wrap = document.getElementById('previewWrap');
+      wrap.className = 'preview-wrap bp-' + bp;
+
+      // Run immediately, then again after CSS transition completes so ghost
+      // width reflects the settled sizer width accurately
+      fullUpdate();
+      setTimeout(fullUpdate, 320);
+    });
+  });
+
+  // ── Char limit ────────────────────────────────────────────────────────────
+
+  function enforceCharLimit(el) {
+    const input = document.getElementById(el + 'Input');
+    const limit = CHAR_LIMITS[el];
+    if (input.value.length > limit) input.value = input.value.slice(0, limit);
+    const len     = input.value.length;
+    const counter = document.getElementById(el + 'CharCount');
+    counter.textContent = `${len} / ${limit}`;
+    counter.className   = 'char-count' + (len>=limit?' over': len>limit*0.85?' warn':'');
+    input.classList.toggle('at-limit', len >= limit);
+  }
+
+  // ── Size snap ─────────────────────────────────────────────────────────────
+
+  function handleSizeBlur(el) {
+    const input = document.getElementById(el + 'SizeInput');
+    const hint  = document.getElementById(el + 'SnapHint');
+    const raw   = parseInt(input.value, 10);
+    const {floor, max} = BP_CONFIG[el].web;
+
+    if (isNaN(raw) || raw <= 0) {
+      input.value = state[el].size;
+      hint.textContent = ''; hint.className = 'snap-hint';
+      return;
+    }
+
+    const snapped = nearestStep(raw, floor, max);
+    state[el].size = snapped;
+    input.value    = snapped;
+
+    if      (raw < floor)     { hint.textContent=`${raw}px below floor → ${snapped}px`; hint.className='snap-hint floored'; }
+    else if (raw > max)       { hint.textContent=`${raw}px exceeds max → ${snapped}px`;  hint.className='snap-hint capped';  }
+    else if (raw !== snapped) { hint.textContent=`${raw}px snapped to ${snapped}px`;     hint.className='snap-hint snapped'; }
+    else                      { hint.textContent=''; hint.className='snap-hint'; }
+
+    updateAll(el);
+  }
+
+  // ── Event wiring ──────────────────────────────────────────────────────────
+
+  ['title','desc'].forEach(el => {
+    const ta = document.getElementById(el + 'Input');
+
+    ta.addEventListener('keydown', e => {
+      const atLimit     = ta.value.length >= CHAR_LIMITS[el];
+      const passThrough = ['Backspace','Delete','ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End','Tab'].includes(e.key) || e.ctrlKey || e.metaKey;
+      if (atLimit && !passThrough && e.key.length === 1) e.preventDefault();
+    });
+
+    ta.addEventListener('paste', e => {
+      e.preventDefault();
+      const limit = CHAR_LIMITS[el];
+      const paste = (e.clipboardData || window.clipboardData).getData('text');
+      const sel   = ta.selectionEnd - ta.selectionStart;
+      const room  = limit - ta.value.length + sel;
+      ta.value    = (ta.value.slice(0, ta.selectionStart) + paste.slice(0, room) + ta.value.slice(ta.selectionEnd)).slice(0, limit);
+      enforceCharLimit(el); updateAll(el);
+    });
+
+    ta.addEventListener('input', () => { enforceCharLimit(el); updateAll(el); });
+
+    document.getElementById(el+'Family').addEventListener('change', e => { state[el].family = e.target.value; updateAll(el); });
+    document.getElementById(el+'Weight').addEventListener('change', e => { state[el].weight = e.target.value; updateAll(el); });
+
+    const si = document.getElementById(el+'SizeInput');
+    si.addEventListener('blur',    () => handleSizeBlur(el));
+    si.addEventListener('keydown', e => { if(e.key==='Enter') e.target.blur(); });
+  });
+
+  // ── Init ──────────────────────────────────────────────────────────────────
+
+  enforceCharLimit('title');
+  enforceCharLimit('desc');
+  fullUpdate();
+</script>
+</body>
+</html>

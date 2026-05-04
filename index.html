@@ -1,0 +1,483 @@
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Serif+Display&family=Syne:wght@400;500;600;700&family=Space+Mono:wght@400;700&family=Playfair+Display:wght@400;500;600;700&family=Fraunces:wght@300;400;500;600&family=Instrument+Sans:wght@400;500;600&display=swap');
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  .app { font-family: 'DM Sans', sans-serif; display: flex; flex-direction: column; }
+
+  /* Preview */
+  .preview-panel {
+    background: #0d0d0d;
+    position: relative;
+    overflow: hidden;
+    aspect-ratio: 16/7;
+    display: flex;
+    align-items: flex-end;
+    padding: 28px 32px;
+  }
+  .preview-bg { position: absolute; inset: 0; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 40%, #0f3460 100%); }
+  .preview-grain { position: absolute; inset: 0; opacity: 0.04; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E"); background-size: 128px; }
+  .preview-accent { position: absolute; top: -60px; right: -60px; width: 260px; height: 260px; border-radius: 50%; background: radial-gradient(circle, rgba(99,102,241,0.18) 0%, transparent 70%); }
+
+  .bp-pill { position: absolute; top: 14px; right: 14px; z-index: 3; display: flex; gap: 4px; }
+  .bp-btn { padding: 4px 10px; border-radius: 20px; font-size: 11px; font-family: 'DM Sans', sans-serif; border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.5); cursor: pointer; transition: all 0.15s; letter-spacing: 0.02em; }
+  .bp-btn.active { background: rgba(255,255,255,0.14); color: rgba(255,255,255,0.9); border-color: rgba(255,255,255,0.3); }
+
+  .scale-badge { position: absolute; top: 14px; left: 14px; z-index: 3; font-size: 10px; font-family: 'DM Sans', sans-serif; padding: 3px 9px; border-radius: 20px; background: rgba(234,179,8,0.18); color: #fbbf24; border: 1px solid rgba(234,179,8,0.3); display: none; gap: 5px; align-items: center; }
+  .scale-badge.visible { display: flex; }
+
+  .preview-content { position: relative; z-index: 2; width: 100%; }
+
+  /* Measure ghost — hidden, same styles, used to count lines */
+  .measure-ghost {
+    position: absolute;
+    visibility: hidden;
+    pointer-events: none;
+    z-index: -1;
+    word-break: break-word;
+    line-height: 1.2;
+    white-space: pre-wrap;
+  }
+  .measure-ghost-desc {
+    position: absolute;
+    visibility: hidden;
+    pointer-events: none;
+    z-index: -1;
+    word-break: break-word;
+    line-height: 1.5;
+    white-space: pre-wrap;
+  }
+
+  .preview-title {
+    color: #f5f5f0;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+    margin-bottom: 10px;
+    word-break: break-word;
+    transition: font-size 0.25s ease, font-family 0.2s, font-weight 0.2s;
+    white-space: pre-wrap;
+  }
+  .preview-desc {
+    color: rgba(245,245,240,0.6);
+    line-height: 1.5;
+    word-break: break-word;
+    transition: font-size 0.25s ease, font-family 0.2s, font-weight 0.2s;
+    white-space: pre-wrap;
+  }
+
+  /* Editor */
+  .editor-panel { background: var(--color-background-primary); border-top: 0.5px solid var(--color-border-tertiary); padding: 20px 24px 24px; display: flex; flex-direction: column; gap: 20px; }
+  .section { display: flex; flex-direction: column; gap: 10px; }
+  .section-header { display: flex; align-items: center; justify-content: space-between; }
+  .section-tag { font-size: 10px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-text-secondary); display: flex; align-items: center; gap: 6px; }
+  .section-tag::before { content: ''; display: inline-block; width: 3px; height: 3px; border-radius: 50%; background: var(--color-text-secondary); }
+
+  .char-row { display: flex; align-items: center; justify-content: space-between; }
+  .char-count { font-size: 11px; color: var(--color-text-tertiary); font-variant-numeric: tabular-nums; }
+  .char-count.warn { color: var(--color-text-warning); }
+  .char-count.over { color: var(--color-text-danger); }
+  .line-hint { font-size: 11px; color: var(--color-text-tertiary); }
+  .line-hint.scaling { color: #f59e0b; }
+
+  textarea {
+    width: 100%; resize: none;
+    border: 0.5px solid var(--color-border-tertiary);
+    border-radius: var(--border-radius-md);
+    padding: 10px 12px;
+    font-family: 'DM Sans', sans-serif; font-size: 13px;
+    color: var(--color-text-primary);
+    background: var(--color-background-secondary);
+    line-height: 1.5; outline: none;
+    transition: border-color 0.15s;
+  }
+  textarea:focus { border-color: var(--color-border-primary); }
+  textarea.at-limit { border-color: var(--color-border-warning); }
+
+  .controls-row { display: grid; grid-template-columns: 1fr 90px 100px; gap: 8px; }
+  .ctrl-group { display: flex; flex-direction: column; gap: 5px; }
+  .ctrl-label { font-size: 10px; font-weight: 500; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: 0.07em; }
+
+  select {
+    width: 100%; height: 34px;
+    border: 0.5px solid var(--color-border-tertiary);
+    border-radius: var(--border-radius-md);
+    padding: 0 24px 0 8px;
+    font-family: 'DM Sans', sans-serif; font-size: 13px;
+    color: var(--color-text-primary);
+    background: var(--color-background-secondary);
+    cursor: pointer; outline: none; appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23888' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 8px center;
+  }
+  select:focus { border-color: var(--color-border-primary); }
+
+  .size-input-wrap { display: flex; height: 34px; }
+  .size-input-wrap input {
+    width: 100%; height: 34px;
+    border: 0.5px solid var(--color-border-tertiary); border-right: none;
+    border-radius: var(--border-radius-md) 0 0 var(--border-radius-md);
+    padding: 0 8px; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500;
+    color: var(--color-text-primary); background: var(--color-background-secondary);
+    text-align: center; outline: none; -moz-appearance: textfield;
+  }
+  .size-input-wrap input::-webkit-outer-spin-button,
+  .size-input-wrap input::-webkit-inner-spin-button { -webkit-appearance: none; }
+  .size-input-wrap input:focus { border-color: var(--color-border-primary); }
+
+  .px-unit { height: 34px; padding: 0 8px; background: var(--color-background-tertiary); border: 0.5px solid var(--color-border-tertiary); border-radius: 0 var(--border-radius-md) var(--border-radius-md) 0; display: flex; align-items: center; font-size: 11px; color: var(--color-text-tertiary); white-space: nowrap; flex-shrink: 0; }
+
+  .snap-hint { font-size: 11px; color: var(--color-text-tertiary); min-height: 14px; }
+  .snap-hint.snapped { color: var(--color-text-secondary); }
+  .snap-hint.floored { color: var(--color-text-warning); }
+  .snap-hint.capped  { color: var(--color-text-info); }
+
+  .eff-sizes { display: flex; gap: 6px; flex-wrap: wrap; }
+  .eff-chip { font-size: 11px; padding: 3px 8px; border-radius: 6px; background: var(--color-background-secondary); color: var(--color-text-secondary); border: 0.5px solid var(--color-border-tertiary); display: flex; align-items: center; gap: 4px; }
+  .eff-chip .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--color-border-secondary); flex-shrink: 0; }
+  .eff-chip.current { background: var(--color-background-primary); border-color: var(--color-border-primary); color: var(--color-text-primary); font-weight: 500; }
+  .eff-chip.current .dot { background: #6366f1; }
+
+  .divider { border: none; border-top: 0.5px solid var(--color-border-tertiary); }
+</style>
+
+<div class="app">
+  <div class="preview-panel" id="previewPanel">
+    <div class="preview-bg"></div>
+    <div class="preview-grain"></div>
+    <div class="preview-accent"></div>
+
+    <div class="scale-badge" id="scaleBadge">Auto-scaled</div>
+
+    <div class="bp-pill">
+      <button class="bp-btn active" data-bp="web">Web</button>
+      <button class="bp-btn" data-bp="tab">Tab</button>
+      <button class="bp-btn" data-bp="mob">Mob</button>
+    </div>
+
+    <!-- Measure ghosts sit inside preview to inherit same width context -->
+    <div class="measure-ghost" id="titleGhost" style="width:calc(100% - 64px);"></div>
+    <div class="measure-ghost-desc" id="descGhost" style="width:calc(100% - 64px);"></div>
+
+    <div class="preview-content">
+      <div class="preview-title" id="previewTitle">Gallery Cover Title</div>
+      <div class="preview-desc" id="previewDesc">A short description for the gallery cover template.</div>
+    </div>
+  </div>
+
+  <div class="editor-panel">
+
+    <!-- TITLE -->
+    <div class="section">
+      <div class="section-header">
+        <span class="section-tag">Title</span>
+      </div>
+      <div class="char-row">
+        <span class="line-hint" id="titleLineHint">1 line</span>
+        <span class="char-count" id="titleCharCount">19 / 70</span>
+      </div>
+      <textarea id="titleInput" rows="2" placeholder="Enter title text…">Gallery Cover Title</textarea>
+      <div class="controls-row">
+        <div class="ctrl-group">
+          <span class="ctrl-label">Font family</span>
+          <select id="titleFamily">
+            <option value="'DM Serif Display', serif">DM Serif Display</option>
+            <option value="'Syne', sans-serif">Syne</option>
+            <option value="'Playfair Display', serif">Playfair Display</option>
+            <option value="'Fraunces', serif">Fraunces</option>
+            <option value="'Space Mono', monospace">Space Mono</option>
+            <option value="'Instrument Sans', sans-serif">Instrument Sans</option>
+          </select>
+        </div>
+        <div class="ctrl-group">
+          <span class="ctrl-label">Weight</span>
+          <select id="titleWeight">
+            <option value="300">Light</option>
+            <option value="400" selected>Regular</option>
+            <option value="500">Medium</option>
+            <option value="600">Semi Bold</option>
+            <option value="700">Bold</option>
+          </select>
+        </div>
+        <div class="ctrl-group">
+          <span class="ctrl-label">Size</span>
+          <div class="size-input-wrap">
+            <input type="number" id="titleSizeInput" value="40" />
+            <div class="px-unit">px</div>
+          </div>
+        </div>
+      </div>
+      <div class="snap-hint" id="titleSnapHint"></div>
+      <div class="eff-sizes" id="titleEffSizes"></div>
+    </div>
+
+    <hr class="divider" />
+
+    <!-- DESCRIPTION -->
+    <div class="section">
+      <div class="section-header">
+        <span class="section-tag">Description</span>
+      </div>
+      <div class="char-row">
+        <span class="line-hint" id="descLineHint">1 line</span>
+        <span class="char-count" id="descCharCount">50 / 150</span>
+      </div>
+      <textarea id="descInput" rows="3" placeholder="Enter description text…">A short description for the gallery cover template.</textarea>
+      <div class="controls-row">
+        <div class="ctrl-group">
+          <span class="ctrl-label">Font family</span>
+          <select id="descFamily">
+            <option value="'DM Sans', sans-serif" selected>DM Sans</option>
+            <option value="'Instrument Sans', sans-serif">Instrument Sans</option>
+            <option value="'Syne', sans-serif">Syne</option>
+            <option value="'Fraunces', serif">Fraunces</option>
+            <option value="'Playfair Display', serif">Playfair Display</option>
+            <option value="'Space Mono', monospace">Space Mono</option>
+          </select>
+        </div>
+        <div class="ctrl-group">
+          <span class="ctrl-label">Weight</span>
+          <select id="descWeight">
+            <option value="300">Light</option>
+            <option value="400" selected>Regular</option>
+            <option value="500">Medium</option>
+            <option value="600">Semi Bold</option>
+          </select>
+        </div>
+        <div class="ctrl-group">
+          <span class="ctrl-label">Size</span>
+          <div class="size-input-wrap">
+            <input type="number" id="descSizeInput" value="14" />
+            <div class="px-unit">px</div>
+          </div>
+        </div>
+      </div>
+      <div class="snap-hint" id="descSnapHint"></div>
+      <div class="eff-sizes" id="descEffSizes"></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const STEPS = [12, 14, 16, 18, 20, 24, 28, 32, 40, 48, 56, 70];
+const CHAR_LIMITS = { title: 70, desc: 150 };
+const BP_CONFIG = {
+  title: { web:{max:70,floor:16}, tab:{max:40,floor:16}, mob:{max:20,floor:16} },
+  desc:  { web:{max:24,floor:12}, tab:{max:16,floor:12}, mob:{max:12,floor:12} },
+};
+const BP_LABELS = { web:'Web', tab:'Tablet', mob:'Mobile' };
+const MAX_LINES = 3;
+const SCALE_STEP = 0.9; // shrink by 10% per extra line
+
+let currentBP = 'web';
+const state = {
+  title: { family:"'DM Serif Display', serif", weight:'400', size:40, autoSize:40 },
+  desc:  { family:"'DM Sans', sans-serif",      weight:'400', size:14, autoSize:14 },
+};
+
+function nearestStep(val, floor, max) {
+  const clamped = Math.max(floor, Math.min(max, val));
+  const valid = STEPS.filter(s => s >= floor && s <= max);
+  if (!valid.length) return floor;
+  return valid.reduce((b,s) => Math.abs(s-clamped)<Math.abs(b-clamped)?s:b, valid[0]);
+}
+
+function effectiveSize(el, bp) {
+  const {max, floor} = BP_CONFIG[el][bp];
+  return Math.max(floor, Math.min(max, state[el].autoSize));
+}
+
+// Count rendered lines using a hidden ghost element
+function countLines(el, text, fontSize, family, weight) {
+  const ghost = document.getElementById(el + 'Ghost');
+  ghost.style.fontFamily = family;
+  ghost.style.fontWeight = weight;
+  ghost.style.fontSize = fontSize + 'px';
+  ghost.textContent = text || ' ';
+
+  const lineH = parseFloat(getComputedStyle(ghost).lineHeight) ||
+                fontSize * (el === 'title' ? 1.2 : 1.5);
+  const totalH = ghost.getBoundingClientRect().height;
+  return Math.max(1, Math.round(totalH / lineH));
+}
+
+// Auto-scale down font if lines > MAX_LINES, return final size used
+function computeAutoSize(el, text, baseSize, family, weight) {
+  const {floor} = BP_CONFIG[el].web;
+  let size = baseSize;
+
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const lines = countLines(el, text, size, family, weight);
+    if (lines <= MAX_LINES) break;
+    const next = Math.max(floor, Math.floor(size * SCALE_STEP));
+    if (next === size) break;
+    size = next;
+  }
+  return size;
+}
+
+let scalingActive = { title: false, desc: false };
+
+function updateAll(el) {
+  const text     = document.getElementById(el + 'Input').value;
+  const family   = state[el].family;
+  const weight   = state[el].weight;
+  const baseSize = effectiveSize(el, currentBP);
+
+  // Compute auto-scaled size
+  const autoSize = computeAutoSize(el, text, baseSize, family, weight);
+  state[el].autoSize = autoSize === baseSize ? state[el].size : autoSize;
+
+  // Is it actually scaling?
+  const isScaling = autoSize < baseSize;
+  scalingActive[el] = isScaling;
+
+  // Update preview element
+  const previewEl = document.getElementById('preview' + (el === 'title' ? 'Title' : 'Desc'));
+  previewEl.style.fontFamily  = family;
+  previewEl.style.fontWeight  = weight;
+  previewEl.style.fontSize    = autoSize + 'px';
+  previewEl.textContent       = text;
+
+  // Scale badge
+  const anyScaling = scalingActive.title || scalingActive.desc;
+  document.getElementById('scaleBadge').classList.toggle('visible', anyScaling);
+
+  // Line count & hint
+  const lines     = countLines(el, text, autoSize, family, weight);
+  const lineHint  = document.getElementById(el + 'LineHint');
+  lineHint.textContent = lines === 1 ? '1 line' : `${lines} line${lines>1?'s':''}` + (isScaling ? ` · scaled to ${autoSize}px` : '');
+  lineHint.className   = 'line-hint' + (isScaling ? ' scaling' : '');
+
+  // Eff sizes chips
+  updateEffSizes(el);
+}
+
+function updateEffSizes(el) {
+  const container = document.getElementById(el + 'EffSizes');
+  container.innerHTML = ['web','tab','mob'].map(bp => {
+    const base = effectiveSize(el, bp);
+    // Estimate auto size for other BPs too (use current text)
+    const text   = document.getElementById(el + 'Input').value;
+    const auto   = computeAutoSize(el, text, base, state[el].family, state[el].weight);
+    const isCur  = bp === currentBP;
+    const scaled = auto < base;
+    return `<div class="eff-chip${isCur?' current':''}">
+      <div class="dot"></div>
+      ${BP_LABELS[bp]}: ${auto}px${scaled?' ↓':''}
+    </div>`;
+  }).join('');
+}
+
+// Hard char limit on input
+function enforceCharLimit(el) {
+  const input = document.getElementById(el + 'Input');
+  const limit = CHAR_LIMITS[el];
+  if (input.value.length > limit) {
+    input.value = input.value.slice(0, limit);
+  }
+  // Update char count
+  const len     = input.value.length;
+  const counter = document.getElementById(el + 'CharCount');
+  counter.textContent = `${len} / ${limit}`;
+  counter.className   = 'char-count' + (len >= limit ? ' over' : len > limit * 0.85 ? ' warn' : '');
+  input.classList.toggle('at-limit', len >= limit);
+}
+
+// Size input snap on blur
+function handleSizeBlur(el) {
+  const input  = document.getElementById(el + 'SizeInput');
+  const hint   = document.getElementById(el + 'SnapHint');
+  const raw    = parseInt(input.value, 10);
+  const {floor, max} = BP_CONFIG[el].web;
+
+  if (isNaN(raw) || raw <= 0) {
+    input.value = state[el].size;
+    hint.textContent = ''; hint.className = 'snap-hint';
+    return;
+  }
+
+  const snapped = nearestStep(raw, floor, max);
+  state[el].size = snapped;
+  input.value = snapped;
+
+  if (raw < floor) {
+    hint.textContent = `${raw}px is below floor — lifted to ${snapped}px`;
+    hint.className = 'snap-hint floored';
+  } else if (raw > max) {
+    hint.textContent = `${raw}px exceeds max — capped to ${snapped}px`;
+    hint.className = 'snap-hint capped';
+  } else if (raw !== snapped) {
+    hint.textContent = `${raw}px → snapped to ${snapped}px`;
+    hint.className = 'snap-hint snapped';
+  } else {
+    hint.textContent = ''; hint.className = 'snap-hint';
+  }
+  updateAll(el);
+}
+
+// Wiring
+['title','desc'].forEach(el => {
+  const textarea = document.getElementById(el + 'Input');
+
+  textarea.addEventListener('keydown', e => {
+    const limit = CHAR_LIMITS[el];
+    const val   = textarea.value;
+    const atLimit = val.length >= limit;
+    // Allow: backspace, delete, arrows, home, end, ctrl/cmd combos
+    const allowed = ['Backspace','Delete','ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End'].includes(e.key)
+      || e.ctrlKey || e.metaKey;
+    if (atLimit && !allowed && e.key.length === 1) {
+      e.preventDefault();
+    }
+  });
+
+  textarea.addEventListener('paste', e => {
+    e.preventDefault();
+    const limit = CHAR_LIMITS[el];
+    const paste = (e.clipboardData || window.clipboardData).getData('text');
+    const remaining = limit - textarea.value.length;
+    const sel = textarea.selectionEnd - textarea.selectionStart;
+    const allowed = Math.min(paste.length, remaining + sel);
+    const start = textarea.selectionStart;
+    const newVal = textarea.value.slice(0, start) + paste.slice(0, allowed) + textarea.value.slice(textarea.selectionEnd);
+    textarea.value = newVal.slice(0, limit);
+    enforceCharLimit(el);
+    updateAll(el);
+  });
+
+  textarea.addEventListener('input', () => {
+    enforceCharLimit(el);
+    updateAll(el);
+  });
+
+  document.getElementById(el + 'Family').addEventListener('change', e => {
+    state[el].family = e.target.value;
+    updateAll(el);
+  });
+
+  document.getElementById(el + 'Weight').addEventListener('change', e => {
+    state[el].weight = e.target.value;
+    updateAll(el);
+  });
+
+  document.getElementById(el + 'SizeInput').addEventListener('blur', () => handleSizeBlur(el));
+  document.getElementById(el + 'SizeInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') e.target.blur();
+  });
+});
+
+document.querySelectorAll('.bp-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.bp-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentBP = btn.dataset.bp;
+    ['title','desc'].forEach(el => updateAll(el));
+  });
+});
+
+// Init
+enforceCharLimit('title');
+enforceCharLimit('desc');
+updateAll('title');
+updateAll('desc');
+</script>
